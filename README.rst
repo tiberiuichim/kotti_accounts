@@ -29,6 +29,8 @@ Setup
 
 1. Insert ``kotti_accounts.kotti_configure`` on ``kotti.configurators``
 
+::
+
     kotti.configurators = kotti_tinymce.kotti_configure
                           kotti_velruse.kotti_configure
                           kotti_accounts.kotti_configure
