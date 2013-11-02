@@ -8,26 +8,40 @@
 .. _Contact : http://github.com/~frgomes
 
 
-kotti_accounts is a `Kotti`_ plugin which allows a user principal to be associated to
+`kotti_accounts`_ is a `Kotti`_ plugin which allows a user principal to be associated to
 multiple email accounts.
 
 `Find out more about Kotti`_
 
 .. _`Kotti`: http://pypi.python.org/pypi/Kotti
-.. _`Velruse`: http://velruse.readthedocs.org
 .. _`Find out more about Kotti`: http://pypi.python.org/pypi/Kotti
+.. _`kotti_velruse`: http://pypi.python.org/pypi/kotti_velruse
+.. _`kotti_accounts`: http://pypi.python.org/pypi/kotti_accounts
+
+
+.. note:: THIS IS A PREVIEW VERSION of `kotti_accounts`_, which is primarily intended to
+          allow `kotti_velruse`_ create a fake user credential in the current browser
+          session.
+
+
+Setup
+=====
+
+1. Insert ``kotti_accounts.kotti_configure`` on ``kotti.configurators``
+
+    kotti.configurators = kotti_tinymce.kotti_configure
+                          kotti_velruse.kotti_configure
+                          kotti_accounts.kotti_configure
 
 
 Design Decisions
 ================
 
-* associate multiple externally authenticated accounts to a single user principal.
+* associate multiple externally authenticated identities to a single Principal.
 * substitute part of the internal registration workflow provided by ``kotti.security``.
-* ban usernames: only associated emails are presented on views.
-* users are uniquely identified internally by uid.
-* uids are never presented in views intended to regular users.
+* behave as a drop-in to the existing ``kotti.security`` Principals/
+* all existing test cases depending on Principals must pass.
 * integrate with `kotti_velruse`_ via events.
-
 
 Workflow
 ========
@@ -51,22 +65,8 @@ Future workflows:
 * (TODO) ability to merge accounts.
 
 
-Setup
-=====
+How it works
+============
 
-1. Insert ``kotti_accounts.kotti_configure`` on ``kotti.configurators``
-
-    kotti.configurators = kotti_tinymce.kotti_configure
-                          kotti_accounts.kotti_configure
-
-2. Insert the block below under section ``[app:main]``
-
-::
-
-    ### --------------------------------------------------------------------------
-    # kotti_accounts configuration
-    ###
-    
-    
-    ### --------------------------------------------------------------------------
+Documentation is pending.
 
