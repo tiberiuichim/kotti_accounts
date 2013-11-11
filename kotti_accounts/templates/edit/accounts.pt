@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      i18n:domain="Kotti"
+      metal:use-macro="api.macro('kotti:templates/edit/master.pt')">
+
+  <div metal:fill-slot="content">
+      <h1 tal:content="structure first_heading | default">${api.page_title}</h1>
+      <form action="${request.url}" method="post">
+
+        <div class="control-group">
+          <label class="control-label desc" i18n:translate="">Full name</label>
+          <div class="controls">
+            <input type="text" name="name" value="${principal.title}" />
+            <button type="submit" name="change" style="margin-bottom: 10px;"
+                          class="btn btn-primary" i18n:translate="">Change</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label desc" i18n:translate="">Email</label>
+          <div class="controls">
+            <input type="text" disabled value="${principal.email}" />
+          </div>
+        </div>
+
+
+        <h2 i18n:translate="">Secondary emails</h2>
+        <table class="table table-bordered">
+
+          <tr tal:repeat="account accounts">
+            <td><input  type="text" disabled value="${account.email}" /></td>
+            <td><button type="submit" name="promote" value="${account.email}" 
+                        class="btn" i18n:translate="">Make Primary</button></td>
+            <td><button type="submit" name="delete" value="${account.email}"
+                        class="btn btn-danger" i18n:translate="">Delete</button></td>
+          </tr>
+
+          <tr>
+            <td><input type="text" disabled value="add a new identity to your account"/></td>
+            <td><button type="submit" name="add" 
+                        class="btn" i18n:translate="">Add...</button></td>
+            <td></td>
+          </tr>
+        </table>
+
+      </form>    
+  </div>
+</html>

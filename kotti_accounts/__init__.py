@@ -1,4 +1,6 @@
-from __future__ import with_statement
+import sys
+
+from pprint import pformat
 
 from datetime import datetime
 
@@ -11,29 +13,40 @@ from sqlalchemy import func
 from sqlalchemy.sql.expression import or_
 from sqlalchemy.orm.exc import NoResultFound
 
-from pyramid.config import Configurator
-
 from kotti import DBSession
 from kotti import Base
 from kotti.util import _
 from kotti.util import request_cache
-
 from kotti.events import objectevent_listeners
 from kotti.security import get_principals
-from kotti.security import Principal
 
 from kotti_velruse.events import AfterKottiVelruseLoggedIn
 from kotti_velruse.events import AfterLoggedInObject
+
 
 
 log = __import__('logging').getLogger(__name__)
 
 
 def kotti_configure(settings):
-    # listen to events
+    kotti_configure_events(settings)
+    kotti_configure_views(settings)
+    log.info('{} configured'.format(__name__))
+
+
+def kotti_configure_events(settings):
     objectevent_listeners[
-        (AfterKottiVelruseLoggedIn, AfterLoggedInObject)].append(after_login_handler)
-    log.info(_(u'kotti_accounts configured'))
+        (AfterKottiVelruseLoggedIn, AfterLoggedInObject)].append(
+            after_login_handler)
+
+
+def kotti_configure_views(settings):
+    settings['pyramid.includes'] += ' kotti_accounts.views'
+
+
+def after_login_handler(event):
+    log.debug('after_login_handler.object = {}'.format(event.object))
+    (event.object.principal, event.object.identities) = find_principal(event.object.json, event.object.user)
 
 
 def _find_user(email):
@@ -41,17 +54,65 @@ def _find_user(email):
     return principals.get(email)
 
 
-def after_login_handler(event):
-    log.debug('after_login_handler.object = {}'.format(event.object))
-    obj = event.object
+def find_principal(json, user):
+    #-- log.debug('find_principal {}'.format(pformat(json)))
+    displayName = None
+    verifiedEmail = None
+    emails = []
+    if 'profile' in json:
+        profile = json['profile']
+        if 'emails' in profile:
+            emails = profile['emails']
+        if 'verifiedEmail' in profile:
+            verifiedEmail = profile['verifiedEmail']
+        elif len(emails) > 0:
+            verifiedEmail = emails[0]
+        if verifiedEmail is None:
+            raise AttributeError(_(u'Provider have not informed any email address'))
+        if 'displayName' in profile:
+            displayName = profile['displayName']
+        elif 'name' in profile and 'formatted' in profile['name']:
+            displayName = profile['name']['formatted']
+        else:
+            displayName = verifiedEmail
 
-    #TODO: obtain info from obj.info, query database, create Principal/Account
-    json = obj.json
+    accounts   = Accounts()
 
-    obj.identities = [ 'rgomes.info@gmail.com', 'rgomes1997@yahoo.co.uk' ]
-    obj.principal = Principal(name='Richard Gomes', email='rgomes.info@gmail.com')
-    obj.principal.last_login_date = datetime.now()
-    obj.principal.id = 12345
+    if user is None:
+        try:
+            log.debug('Find Principal for email {}'.format(verifiedEmail))
+            principal = accounts[verifiedEmail]
+        except Exception as e:
+            log.debug('Exception {}'.format(type(e)))
+            log.debug('Create Principal {} for email {}'.format(displayName, verifiedEmail))
+            accounts[verifiedEmail] = {
+                'name' : verifiedEmail,
+                'title': displayName,
+                'email': verifiedEmail
+                }
+            principal = accounts[verifiedEmail]
+    else:
+        principal = user
+        log.debug('verifiedEmail is {}'.format(verifiedEmail))
+        log.debug('principal is {}'.format(principal))
+        log.debug(type(principal))
+        try:
+            dummy = accounts[verifiedEmail]
+        except Exception as e:
+            accounts[verifiedEmail] = principal
+
+    for email in emails:
+        if email != verifiedEmail:
+            log.debug('Create additional Account for email {}'.format(email))
+            try:
+                dummy = accounts[email]
+            except:
+                accounts[email] = principal
+
+    principal.last_login_date = datetime.now()
+    return (principal, emails)
+
+
 
 
 class Account(Base):
@@ -61,14 +122,14 @@ class Account(Base):
         )
 
     email = Column(Unicode(100), primary_key=True)
-    uid = Column(Integer)
+    id = Column(Integer)
 
-    def __init__(self, email, principal):
+    def __init__(self, email, id):
         self.email = email
-        self.uid = principal.id
+        self.id = id
 
     def __repr__(self):  # pragma: no cover
-        return '<Account %r>' % self.uid
+        return '<Account %r>' % self.id
 
 
 
@@ -83,7 +144,8 @@ class Accounts(DictMixin):
     See: ``AbstractPrincipals`` for documentation.
     See: ``Principals`` for the wrapped implementation.
 
-    Design decisions
+    Design
+    ------
 
     * associate multiple externally authenticated identities to a single Principal.
     * substitute part of the internal registration workflow provided by ``kotti.security``.
@@ -92,6 +154,7 @@ class Accounts(DictMixin):
     * integrate with `kotti_velruse`_ via events.
 
     Workflow
+    --------
 
     In order to reuse the existing class kotti.security.Principals as it is, as well as
     reuse all existing code intended to perform authorization, this class does the following:
@@ -103,111 +166,135 @@ class Accounts(DictMixin):
       existing Principal.
     * If an association is found, the corresponding Principal is returned.
     * If no association is found, a new Principal is automagically created, making sure that:
-        * A unique username is "invented" on the fly. Note that the username is irrelevant
-          from the user's perspective, since the user is uniquely identified by his/her
-          externally authenticated email address.
-        * The email address informed when a new Principal is created becomes the single point
-          of contact with the user.
-        * A random password is generated in order to increase security, just in case. Note
-          that the nor the user nor this module needs to know the generated password at any
-          time in future because authentication is always performed externally to Kotti.
+        * A unique username is obtained from the verified email informed by the authentication
+          provider. This is done in the hope that email is a good unique key and for the sake
+          of compatibility with the existing implementation of kotti.security.Principals.
+        * A new Account is created with primary key defined by the verified email informed by
+          the authentication provider.
+        * In case the authentication provider returns a list of emails, a list of Account
+          records is created and associated to the Principal just created.
 
-    A principal can have multiple emails associated to it. This situation happens when an
-    already logged in Principal authenticates externally again, providing a [possibly] new
-    email address to Accounts. In this case:
+    Multiple Account records can be associated to a single Principals. One situation was
+    already described above. Another situation happens when an already logged in Principal
+    authenticates externally again, providing a [possibly] new email address to Accounts.
+    In this case:
 
     * When a new email is informed, a new association to the logged in Principal is created.
     * When an existing email is informed, there are two situations:
         * if already associated to the logged in Principal, nothing happens.
         * if already associated to another Principal, an error condition is raised.
 
+    Still, another possibility of multiple email addresses associated to a single Principal
+    arises when principals are merged. In this case, one of them is simply discarded and
+    all resources associated to it are migrated to the remaining Principal.
+
     Pending
+    -------
 
-    1. Study how Principal.name or Principal.title are presented on different views by
-       Kotti in general and by other plugins. Depending on circumstances, we will have
-       to make something like: "principal.name = str(principal.id)" in order to make
-       sure the name is unique. Eventually, we will have modify how principal.name is
-       obtained, returning the title instead.
+    1. Substitute hardcode in __init__ so that stub_principals and stub_factory are obtained
+       from configuration.
+
+    2. Implement merging of Principals;
     """
+
     factory = Account
+    stub_principals = None
+    stub_factory = None
+    nodomain = '@localdomain'
 
-    def __init__(self, **kwargs):
-        config = Configurator()
 
-        config.add_
+    def __init__(self, behave_as_Principals=True):
+        import kotti.security
+        self.stub_principals = kotti.security.Principals()
+        self.stub_factory = self.stub_principals.factory
+        self.behave_as_Principals = behave_as_Principals
 
-        settings = config.get_settings()
-        self.stub_factory = settings.get(
-            'kotti_accounts.stubs.principals_factory',
-            'kotti.security.principals_factory')[0]().factory
-        self.compatibility_mode = settings.get(
-            'kotti_accounts.compatibility_mode', True)
-        log.debug(type(self.stup_factory))
-        log.debug(self.compatibility_mode)
-        self.accounts_nodomain = '@nodomain'
-
-    def name2email(self, name):
-        return name if name.find('@') > -1 else name + self.accounts_nodomain
 
     @request_cache(lambda self, name: name)
     def __getitem__(self, name):
-        name = unicode(name)
-        try:
-            account = DBSession.query(
-                self.factory).filter(
-                    self.factory.email == self.name2email(name)).one()
-            return DBSession.query(
-                self.stub_factory).filter(
-                    self.stub_factory.id == account.id).one()
-        except NoResultFound:
-            raise KeyError(name)
-
-    def __setitem__(self, name, principal):
-        name = unicode(name)
-        # an underlying Principal must be created when a dict is received
-        if isinstance(principal, dict):
-            principal = self.stub_factory(**principal)
-            DBSession.add(principal)
-        # create an Account associated to an existing Principal
-        if isinstance(principal, self.stub_factory):
-            account = self.factory(
-                email=self.name2email(name), principal=principal)
-            DBSession.add(account)
-        else:
-            raise AttributeError(type(principal))
-
-    def __delitem__(self, name):
+        log.debug( sys._getframe().f_code.co_name )
+        log.debug(type(name))
+        log.debug(name)
         name = unicode(name)
         try:
             principal = DBSession.query(
-                self.factory).filter(self.factory.name == name).one()
-            # deleting the Principal deletes all Account records 
-            accounts = DBSession.query(
-                self.factory).filter(self.factory.id == principal.id)
-            for account in accounts:
-                DBSession.delete(account)
+                self.stub_factory).filter(
+                    self.stub_factory.name == name).one()
+            log.debug('principal found :: id={} name={} email={}'.format(
+                principal.id, principal.name, principal.email))
+            return principal
         except NoResultFound:
-            # deletes only one associated account, if any
             try:
                 account = DBSession.query(
                     self.factory).filter(
-                        self.factory.email == self.name2email(name)).one()
-                DBSession.delete(account)
+                        self.factory.email == self.__name2email(name)).one()
+                log.debug('account found  id={} email={}'.format(
+                    account.id, account.email))
+                principal = DBSession.query(
+                    self.stub_factory).filter(
+                        self.stub_factory.id == account.id).one()
+                log.debug('principal found :: id={} name={} email={}'.format(
+                    principal.id, principal.name, principal.email))
+                return principal
             except NoResultFound:
+                log.error('KeyError')
                 raise KeyError(name)
 
+
+    def __setitem__(self, name, principal):
+        log.debug( sys._getframe().f_code.co_name )
+        name = unicode(name)
+        if isinstance(principal, dict):
+            log.debug('Creating Principal\n{}'.format(pformat(principal)))
+            principal = self.stub_factory(**principal)
+            log.debug(type(principal))
+            log.debug('adding Principal')
+            DBSession.add(principal)
+            log.debug('flush')
+            DBSession.flush()
+            log.debug('Principal added :: id={} email={}'.format(principal.id, principal.email))
+        if isinstance(principal, self.stub_factory):
+            log.debug('Creating Account id={}  email={}'.format(principal.id, name))
+            account = self.factory(email=name, id=principal.id)
+            log.debug('adding Account')
+            DBSession.add(account)
+            log.debug('Account added :: id={} email={}'.format(account.id, account.email))
+        else:
+            raise AttributeError(name)
+
+
+    def __delitem__(self, name):
+        log.debug( sys._getframe().f_code.co_name )
+        if self.behave_as_Principals:
+            del self.stub_factory[name]
+        else:
+            name = unicode(name)
+            log.debug(name)
+            account = DBSession.query(
+                self.factory).filter(self.factory.email == name).one()
+            DBSession.delete(account)
+
+
     def iterkeys(self):
-        if self.compatibility_mode:
-            for (principal_name,) in DBSession.query(self.stub_factory.name):
+        log.debug( sys._getframe().f_code.co_name )
+        if self.behave_as_Principals:
+            for principal_name in self.stub_factory.iterkeys():
                 yield principal_name
         else:
             for (account_name,) in DBSession.query(self.factory.email):
                 yield account_name
 
+
     def keys(self):
+        log.debug( sys._getframe().f_code.co_name )
         return list(self.iterkeys())
 
+
     def search(self, **kwargs):
+        log.debug( sys._getframe().f_code.co_name )
+        if self.behave_as_Principals:
+            return self.stub_factory.search(kwargs)
+
         if not kwargs:
             return []
         filters = []
@@ -219,19 +306,23 @@ class Accounts(DictMixin):
             else:
                 filters.append(col == value)
 
-        if self.compatibility_mode:
-            query = DBSession.query(self.stub_factory)
-        else:
-            query = DBSession.query(self.factory)
-
+        query = DBSession.query(self.factory)
         query = query.filter(or_(*filters))
         return query
 
+
     def hash_password(self, password, hashed=None):
-        return self.stub_factory(password, hashed)
+        log.debug( sys._getframe().f_code.co_name )
+        return self.stub_principals.hash_password(password, hashed)
+
 
     def validate_password(self, clear, hashed):
-        return self.stub_factory(clear, hashed)
+        log.debug( sys._getframe().f_code.co_name )
+        return self.stub_principals.validate_password(clear, hashed)
+
+    def __name2email(self, name):
+        return name if name.find('@') > -1 else name + self.nodomain
+
 
 
 def principals_factory():
