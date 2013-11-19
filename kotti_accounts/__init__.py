@@ -18,12 +18,14 @@ from kotti import Base
 from kotti.util import _
 from kotti.util import request_cache
 from kotti.events import objectevent_listeners
+from kotti.events import notify
 from kotti.security import get_principals
+from kotti.views.login import UserSelfRegistered
 
 from kotti_velruse.events import AfterKottiVelruseLoggedIn
 from kotti_velruse.events import AfterLoggedInObject
 
-
+__version__ = '0.2.2'
 
 log = __import__('logging').getLogger(__name__)
 
@@ -46,7 +48,9 @@ def kotti_configure_views(settings):
 
 def after_login_handler(event):
     log.debug('after_login_handler.object = {}'.format(event.object))
-    (event.object.principal, event.object.identities) = find_principal(event.object.json, event.object.user)
+    (event.object.principal, event.object.identities) = find_principal(event.object.json,
+                                                                       event.object.user,
+                                                                       event.object.request)
 
 
 def _find_user(email):
@@ -54,7 +58,7 @@ def _find_user(email):
     return principals.get(email)
 
 
-def find_principal(json, user):
+def find_principal(json, user, request):
     #-- log.debug('find_principal {}'.format(pformat(json)))
     displayName = None
     verifiedEmail = None
@@ -91,6 +95,9 @@ def find_principal(json, user):
                 'email': verifiedEmail
                 }
             principal = accounts[verifiedEmail]
+            # Triggers UserSelfRegistered event in case user is None, i.e: when a true
+            # new user registers, not when a new email is added to an existing account.
+            notify(UserSelfRegistered(principal, request))
     else:
         principal = user
         log.debug('verifiedEmail is {}'.format(verifiedEmail))

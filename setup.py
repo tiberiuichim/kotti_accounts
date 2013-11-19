@@ -1,9 +1,12 @@
-import os
+import os, re
 from setuptools import setup, find_packages
 
+name = 'kotti_accounts'
 
-here    = os.path.abspath(os.path.dirname(__file__))
-version = open(os.path.join(here, 'VERSION')).readlines()[0].strip()
+here = os.path.abspath(os.path.dirname(__file__))
+init_file = os.path.join(here, name, '__init__.py')
+version_re = "\s*__version__\s*=\s*((\"([^\"]|\\\\\")*\"|'([^']|\\\\')*'))"
+version = re.search(version_re, open(init_file).read()).groups()[0][1:-1]
 
 README  = open(os.path.join(here, 'README')).read()
 AUTHORS = open(os.path.join(here, 'AUTHORS')).read()
@@ -27,7 +30,7 @@ install_requires = [
     ]
 
 
-setup(name='kotti_accounts',
+setup(name=name,
       version=version,
       description="Allows a user principal to be associated to multiple email accounts.",
       long_description=long_description,

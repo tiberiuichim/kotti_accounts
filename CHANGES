@@ -18,5 +18,8 @@ Changelog
 
 -  Provides a replacement for Preferences page (@@prefs)
 
+0.2.2 (18-Nov-2013)
+-------------------
 
+- Propagates event UserSelfRegistered when a new Principal is created.
 
