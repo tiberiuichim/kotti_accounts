@@ -26,7 +26,7 @@ setup_requires = [
 
 install_requires = [
     'Kotti',
-    'kotti_velruse=0.3.3',
+    'kotti_velruse>=0.3.3',
     ]
 
 
