@@ -6,8 +6,11 @@ Changelog
 
 - Allows a list of administrative accounts. For example:
 
+::
+
     kotti.accounts.admins = admin@example.com
                             webmaster@example.com
+
 
 0.2.2 (18-Nov-2013)
 -------------------
