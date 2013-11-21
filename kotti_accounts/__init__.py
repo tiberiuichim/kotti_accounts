@@ -16,16 +16,17 @@ from sqlalchemy.orm.exc import NoResultFound
 from kotti import DBSession
 from kotti import Base
 from kotti.util import _
+from kotti import get_settings
 from kotti.util import request_cache
 from kotti.events import objectevent_listeners
 from kotti.events import notify
+from kotti.security import USER_MANAGEMENT_ROLES
 from kotti.security import get_principals
 from kotti.views.login import UserSelfRegistered
-
 from kotti_velruse.events import AfterKottiVelruseLoggedIn
 from kotti_velruse.events import AfterLoggedInObject
 
-__version__ = '0.2.2'
+__version__ = '0.2.3'
 
 log = __import__('logging').getLogger(__name__)
 
@@ -94,7 +95,14 @@ def find_principal(json, user, request):
                 'title': displayName,
                 'email': verifiedEmail
                 }
+            # creates a new Principal
             principal = accounts[verifiedEmail]
+            # assing administration rights to it, ONLY IF needed
+            admins = get_settings().get('kotti.accounts.admins')
+            if admins and verifiedEmail in admins:
+                log.warn('New Principal {} for email {} has got ADMINISTRATIVE RIGHTS !!!'.format(
+                    displayName, verifiedEmail))
+                principal.groups = USER_MANAGEMENT_ROLES
             # Triggers UserSelfRegistered event in case user is None, i.e: when a true
             # new user registers, not when a new email is added to an existing account.
             notify(UserSelfRegistered(principal, request))

@@ -135,23 +135,35 @@ which means that the usual ``admin/qwerty`` is not valid anymore.
 
 The way to become administrator consists on these steps:
 
-- Please follow the steps as described in section _Setup_, above.
+- Insert something similar to the below into your configuration file:
 
-- Start the server and authenticate using some external provider of your preference.
+::
+
+    kotti.accounts.admins = admin@example.com
+                            webmaster@example.com
+
+.. note::
+
+    This allows the specified list of emails to be understood as special.
+    It means that administrator rights will be automatically assigned **only** at Principal
+    creation, which happens *when the user authenticates for the first time*.
+
+- Start the server and authenticate using some external provider, employing any of the
+  emails listed as part of ``kotti.accounts.admins``.
 
 - Stop the server
 
-- Temporarily comment out the configuration you've done.
+- Remove the configuration you just done on ``kotti.accounts.admins``.
 
-- Start the server again and authenticate this time as "admin/qwerty", since the default
-  authentication process will be back on.
+.. warning::
 
-- Enter page ``@@users`` and assing Admin rights to your user account (the one which you
-  authenticated before, using an external provider).
+    In order to enforce security, it's a good practice to remove ``kotti.accounts.admins``
+    from your configuration.
 
-- Stop the server
 
-- Put the configurations back on, as explained by section Setup.
+- Start the server
+
+
 
 When you login to your previously created user account, using an external provider, you
 will be recognized as administrator.
