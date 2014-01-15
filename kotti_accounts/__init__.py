@@ -293,7 +293,7 @@ class Accounts(DictMixin):
     def iterkeys(self):
         log.debug( sys._getframe().f_code.co_name )
         if self.behave_as_Principals:
-            for principal_name in self.stub_factory.iterkeys():
+            for principal_name in self.stub_principals.iterkeys():
                 yield principal_name
         else:
             for (account_name,) in DBSession.query(self.factory.email):
@@ -308,7 +308,7 @@ class Accounts(DictMixin):
     def search(self, **kwargs):
         log.debug( sys._getframe().f_code.co_name )
         if self.behave_as_Principals:
-            return self.stub_factory.search(kwargs)
+            return self.stub_principals.search(kwargs)
 
         if not kwargs:
             return []
