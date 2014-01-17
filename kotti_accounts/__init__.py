@@ -68,7 +68,7 @@ def find_principal(json, user, request):
         profile = json['profile']
         if 'emails' in profile:
             emails = profile['emails']
-            if emails and instance(emails[0], dict):
+            if emails and isinstance(emails[0], dict):
                 emails = [r['value'] for r in emails]
         if 'verifiedEmail' in profile:
             verifiedEmail = profile['verifiedEmail']
