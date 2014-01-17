@@ -8,9 +8,9 @@ init_file = os.path.join(here, name, '__init__.py')
 version_re = "\s*__version__\s*=\s*((\"([^\"]|\\\\\")*\"|'([^']|\\\\')*'))"
 version = re.search(version_re, open(init_file).read()).groups()[0][1:-1]
 
-README  = open(os.path.join(here, 'README')).read()
-AUTHORS = open(os.path.join(here, 'AUTHORS')).read()
-CHANGES = open(os.path.join(here, 'CHANGES')).read()
+README  = open(os.path.join(here, 'README.rst')).read()
+AUTHORS = open(os.path.join(here, 'AUTHORS.rst')).read()
+CHANGES = open(os.path.join(here, 'CHANGES.rst')).read()
 
 long_description = (
     README
@@ -57,7 +57,7 @@ setup(name=name,
       packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
       include_package_data=True,
       zip_safe=False,
-      setup_requires=setup_requires, 
+      setup_requires=setup_requires,
       install_requires=install_requires,
 
       #TODO
